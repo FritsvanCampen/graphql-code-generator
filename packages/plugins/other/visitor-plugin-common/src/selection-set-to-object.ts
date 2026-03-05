@@ -542,7 +542,7 @@ export class SelectionSetToObject<Config extends ParsedDocumentsConfig = ParsedD
     let requireTypename = false;
 
     // usages via fragment typescript type
-    const fragmentsSpreadUsages: string[] = [];
+    const fragmentsSpreadUsages: { name: string; isOptional: boolean }[] = [];
 
     // ensure we mutate no function params
     selectionNodes = [...selectionNodes];
@@ -618,7 +618,8 @@ export class SelectionSetToObject<Config extends ParsedDocumentsConfig = ParsedD
         }
 
         if (isMasked) {
-          fragmentsSpreadUsages.push(selectionNode.typeName);
+          const isOptional = selectionNode.fragmentDirectives.some((directive) => directive.name.value === "include");
+          fragmentsSpreadUsages.push({ name: selectionNode.typeName, isOptional });
           continue;
         }
       }
@@ -723,11 +724,13 @@ export class SelectionSetToObject<Config extends ParsedDocumentsConfig = ParsedD
 
     if (fragmentsSpreadUsages.length) {
       if (this._config.inlineFragmentTypes === 'combine') {
-        fields.push(...fragmentsSpreadUsages);
+        fields.push(...fragmentsSpreadUsages.map((fragment) => {
+          return fragment.isOptional ? `Partial<${fragment.name}>` : fragment.name;
+        }));
       } else if (this._config.inlineFragmentTypes === 'mask') {
         fields.push(
           `{ ' $fragmentRefs'?: { ${fragmentsSpreadUsages
-            .map(name => `'${name}': ${options.unsetTypes ? `Incremental<${name}>` : name}`)
+            .map(fragment => `'${fragment.name}': ${options.unsetTypes ? `Incremental<${fragment.name}>` : fragment.name}`)
             .join(`;`)} } }`
         );
       }

@@ -7377,5 +7377,55 @@ function test(q: GetEntityBrandDataQuery): void {
         export type UserFragmentFragment = { __typename?: 'User', id: string } & { ' $fragmentName'?: 'UserFragmentFragment' };
       `);
     });
+    it('NEW - @include on fragment with inlineFragmentTypes:combine should generate optional fragment', async () => {
+      const schema = buildSchema(/* GraphQL */ `
+        type Query {
+          user: User
+        }
+
+        type User {
+          name: String
+        }
+      `);
+
+      const fragment = parse(/* GraphQL */ `
+			  fragment Name on User {
+				  name
+			  }
+        query user($withName: Boolean! = false) {
+            user {
+              ...Name @include(if: $withName)
+            }
+          }
+      `);
+
+      const { content } = await plugin(
+          schema,
+          [{ location: '', document: fragment }],
+          { preResolveTypes: false, inlineFragmentTypes: "combine" },
+          {
+            outputFile: 'graphql.ts',
+          }
+      );
+
+      expect(content).toBeSimilarStringTo(`
+        export type NameFragment = (
+        { __typename?: 'User' }
+        & Pick<User, 'name'>
+      );
+
+      export type UserQueryVariables = Exact<{
+        withName?: Scalars['Boolean']['input'];
+      }>;
+
+
+      export type UserQuery = (
+        { __typename?: 'Query' }
+        & { user?: Maybe<(
+          { __typename?: 'User' }
+          & Partial<NameFragment>
+        )> }
+      );`);
+    });
   });
 });
